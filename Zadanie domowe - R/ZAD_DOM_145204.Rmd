@@ -1,0 +1,114 @@
+---
+title: "ZED - Zadanie domowe"
+author: "Bartłomiej Kowalewski, 145204"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    toc: yes
+    toc_float: yes
+    number_sections: yes
+---
+
+```{r ustawienia, include=F}
+knitr::opts_chunk$set(echo=F, warning=F, message=F)
+```
+
+# Setup
+
+Wykorzystane biblioteki:
+
+- knitr,
+- dplyr,
+- EDAWR
+- skimr,
+- DT.
+
+```{r ladowanie_bibliotek, echo=T}
+library(knitr)
+library(dplyr)
+library(EDAWR)
+library(skimr)
+library(DT)
+```
+
+```{r}
+prettyTable <- function(table_df, round_digits=2) {
+    DT::datatable(table_df, style="bootstrap", filter = "top", rownames = FALSE, extensions = "Buttons", options = list(dom = 'Bfrtip', buttons = c('copy', 'csv', 'excel', 'pdf', 'print'))) %>% formatRound(names(dplyr::select_if(table_df, is.numeric)), round_digits)
+}
+```
+
+# Wykorzystane dane
+
+```{r wczytanie_danych, echo=F, cache=T}
+data_tb <- tb
+#data_tb <- replace(tb, is.na(tb), 0)
+```
+
+Wykorzystany zbiór danych posiada 3800 rekordów zawierających informacje o liczbie zachorowań na gruźlicę w poszczególnych krajach w latach 1995-2013.
+
+Atrybuty w zbiorze danych:
+
+- "country" - kraj,
+- "year" - rok,
+- "sex" - płeć,
+- "child" - liczba przypadków odnotowanych wśród osób w wieku 0-14 lat,
+- "adult" - liczba przypadków odnotowanych wśród osób w wieku 15-64 lata,
+- "elderly" - liczba przypadków odnotowanych wśród osób w wieku powyżej 64 lat.
+
+```{r podsumowanie}
+skim(data_tb)
+#prettyTable(as.data.frame.table(data_tb))
+#summary(data_tb)
+#kable(data_tb)
+```
+
+# Analiza liczby zachorowań z podziałem na płeć
+
+```{r zachorowania_plec}
+data_tb_by_sex <- data_tb %>%
+  group_by(sex) %>%
+  summarise(total_counts = sum(c(child, adult, elderly), na.rm=T)) %>%
+  select(sex, total_counts)
+
+kable(data_tb_by_sex)
+prettyTable(data_tb_by_sex)
+options(scipen=999)
+barplot(data_tb_by_sex$total_counts, names.arg = data_tb_by_sex$sex, ylim=range(pretty(c(0, data_tb_by_sex$total_counts))), ylab="Liczba przypadków", xlab="Płeć", beside=T)
+```
+
+# Sumaryczna liczba zachorowań wśród różnych grup wiekowych na przestrzeni lat
+
+```{r zachorowania_lata}
+group_cases <- data_tb %>%
+  group_by(year) %>%
+  summarise(child_cases = sum(child, na.rm=T), adult_cases = sum(adult, na.rm=T), elderly_cases = sum(elderly, na.rm=T)) %>%
+  select(year, child_cases, adult_cases, elderly_cases)
+
+options(scipen=0)
+matplot(x = group_cases$year, y = cbind(group_cases$child_cases, group_cases$adult_cases, group_cases$elderly_cases), type = "l", lty = 1, col = c("red", "blue", "green"), xlab = "Rok", 
+        ylab = "Liczba przypadków", main = "Liczba zachorowań wśród różnych grup wiekowych na przestrzeni lat")
+
+legend("topleft", legend = c("Dzieci", "Dorośli", "Osoby starsze"), 
+       col = c("red", "blue", "green"), 
+       lty = 1)
+```
+
+# Sumaryczna liczba zachorowań wśród różnych grup wiekowych na przestrzeni lat osobno dla każdego kraju
+
+```{r zachorowania_kraj_lata}
+country_group_cases <- data_tb %>%
+  group_by(country, year) %>%
+  summarise(child_cases = sum(child, na.rm=T), adult_cases = sum(adult, na.rm=T), elderly_cases = sum(elderly, na.rm=T)) %>%
+  select(year, country, child_cases, adult_cases, elderly_cases)
+
+for (country_name in unique(country_group_cases$country)) {
+
+  certain_country_group_cases <- country_group_cases %>% 
+    filter(country == country_name) %>%
+    mutate_at(c('child_cases', 'adult_cases', 'elderly_cases'), ~na_if(., 0))
+  
+  matplot(x = certain_country_group_cases$year, y = cbind(certain_country_group_cases$child_cases, certain_country_group_cases$adult_cases, certain_country_group_cases$elderly_cases), type = "b", pch = 20, lty = 1, col = c("red", "blue", "green"), xlab = "Rok", ylab = "Liczba przypadków", main = paste("Liczba zachorowań - ", country_name))
+
+  legend("topleft", legend = c("Dzieci", "Dorośli", "Osoby starsze"), col = c("red", "blue", "green"), lty = 1) 
+}
+```
